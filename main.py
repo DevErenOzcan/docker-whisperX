@@ -24,7 +24,7 @@ def transcription():
         print(f"Received audio chunk size: {len(audio_array)} samples")
 
         # 4. Transkripsiyon
-        result = model.transcribe(audio_array, language="tr", batch_size=16)
+        result = model.transcribe(audio_array, language="en", batch_size=16)
         print(result)
 
     except Exception as e:
