@@ -108,7 +108,8 @@ RUN --mount=type=cache,id=uv-$TARGETARCH$TARGETVARIANT,sharing=locked,target=/ro
 # Install whisperX project
 RUN --mount=type=cache,id=uv-$TARGETARCH$TARGETVARIANT,sharing=locked,target=/root/.cache/uv \
     --mount=source=whisperX,target=.,rw \
-    uv sync --frozen --no-dev --no-editable
+    uv sync --frozen --no-dev --no-editable && \
+    uv pip install flask
 
 ########################################
 # Final stage for no_model
@@ -168,6 +169,9 @@ ENV LD_LIBRARY_PATH="/lib/x86_64-linux-gnu:/lib/aarch64-linux-gnu:/venv/lib/pyth
 RUN python3 -c 'import whisperx;' && \
     whisperx -h
 
+COPY --link --chown=$UID:0 --chmod=775 main.py /app/main.py
+EXPOSE 5000
+
 WORKDIR /app
 
 VOLUME [ "/app" ]
@@ -176,7 +180,7 @@ USER $UID
 
 STOPSIGNAL SIGINT
 
-ENTRYPOINT [ "dumb-init", "--", "/bin/sh", "-c", "whisperx \"$@\"" ]
+ENTRYPOINT [ "dumb-init", "--", "python", "/app/main.py" ]
 
 ARG VERSION
 ARG RELEASE
@@ -250,7 +254,7 @@ ARG WHISPER_MODEL
 ENV WHISPER_MODEL=${WHISPER_MODEL}
 
 # Take the first language from LANG env variable
-ENTRYPOINT [ "dumb-init", "--", "/bin/sh", "-c", "LANG=$(echo ${LANG} | cut -d ' ' -f1); whisperx --model \"${WHISPER_MODEL}\" --language \"${LANG}\" \"$@\"" ]
+ENTRYPOINT [ "dumb-init", "--", "python", "/app/main.py" ]
 
 ARG VERSION
 ARG RELEASE
