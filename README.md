@@ -1,130 +1,65 @@
-# docker-whisperX
+# Docker-WhisperX (Flask API Edition)
 
-[![CodeFactor](https://www.codefactor.io/repository/github/jim60105/docker-whisperx/badge)](https://www.codefactor.io/repository/github/jim60105/docker-whisperx) ![Docker Build](https://img.shields.io/github/actions/workflow/status/jim60105/docker-whisperX/04-build-matrix-images.yml?label=Docker%20Build)
+This repository is a fork of the original [jim60105/docker-whisperX](https://github.com/jim60105/docker-whisperX) project, restructured as a **Web API** microservice.
 
-This is the docker image for [WhisperX: Automatic Speech Recognition with Word-Level Timestamps (and Speaker Diarization)](https://github.com/m-bain/whisperX) from the community.
+The CLI-based structure of the original project has been modified to enable the WhisperX model to respond to HTTP requests via a **Flask** server. This allows you to easily use the model as a standalone service in projects such as real-time audio analysis, speech-to-text, or speaker diarization.
 
-The objective of this project is to efficiently manage the continuous integration docker build workflow on the ***GitHub Free runner*** on a ***weekly basis***. Which includes building ***175*** Docker images ***in parallel***, each with a size of ***10GB.*** To ensure smooth operation, I have concentrated on utilizing docker layer caches efficiently, maximizing layer reuse, carefully managing cache read/write order to prevent any issues, and optimizing to minimize image size and build time.
+## Key Changes Made
 
-Additionally, for my personal preference, I am dedicated to following best practices, industry standards and policies to the best of my ability.
+* **Flask API Integration:** A new `main.py` file has been added to the repository. This file hosts a web server that listens for `POST` requests at the root (`/`) directory and returns Turkish (`tr`) transcriptions using the `medium` sized model.
+* **Dockerfile Updates:**
+  * The `flask` dependency required for the API to function was added to the build stage.
+  * An `EXPOSE 5000` port instruction was added to the Dockerfile to allow communication with the outside world.
+  * The `ENTRYPOINT` argument was updated to `[ "dumb-init", "--", "python", "/app/main.py" ]` so that the Flask server starts automatically when the container runs, instead of waiting for a CLI command.
 
-Get the Dockerfile at [GitHub](https://github.com/jim60105/docker-whisperX), or pull the image from [ghcr.io](https://ghcr.io/jim60105/whisperx).
+## How to Run
 
-## 🚀 Get your Docker ready for GPU support
-
-### Windows
-
-Once you have installed **Docker Desktop**, **CUDA Toolkit**, **NVIDIA Windows Driver**, and ensured that your Docker is running with **WSL2**, you are ready to go.
-
-Here is the official documentation for further reference.  
-<https://docs.nvidia.com/cuda/wsl-user-guide/index.html#nvidia-compute-software-support-on-wsl-2>
-<https://docs.docker.com/desktop/wsl/use-wsl/#gpu-support>
-
-### Linux, OSX
-
-Install an NVIDIA GPU Driver if you do not already have one installed.  
-<https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/index.html>
-
-Install the NVIDIA Container Toolkit with this guide.  
-<https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html>
-
-> [!TIP]  
-> I have a Chinese blog about this topic:  
-> [Podman GPU Configuration Notes for Fedora/RHEL](https://xn--jgy.tw/Container/configuring-gpu-in-linux-podman/)
-
-## 📦 Available Pre-built Image
-
-![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/jim60105/docker-whisperX/04-build-matrix-images.yml?label=Docker%20Build) ![GitHub last commit (branch)](https://img.shields.io/github/last-commit/jim60105/docker-whisperX/master?label=Date)
-
-> [!NOTE]  
-> The WhisperX code base in these images aligns with the git submodule commit hash.  
-> I have [a scheduled CI workflow](https://github.com/jim60105/docker-whisperX/actions/workflows/submodule_update.yml) runs weekly to target on [the main branch](https://github.com/m-bain/whisperX/tree/main) and rebuild all docker images.
+### 1. Building the Docker Image
+After cloning the project, you can build the image locally:
 
 ```bash
-docker run --gpus all -it -v ".:/app" ghcr.io/jim60105/whisperx:base-en     -- --output_format srt audio.mp3
-docker run --gpus all -it -v ".:/app" ghcr.io/jim60105/whisperx:large-v3-ja -- --output_format srt audio.mp3
-docker run --gpus all -it -v ".:/app" ghcr.io/jim60105/whisperx:no_model    -- --model tiny --language en --output_format srt audio.mp3
+docker build --build-arg WHISPER_MODEL=medium -t whisperx-api:latest .
 ```
 
-The image tags are formatted as `WHISPER_MODEL`-`LANG`, for example, `tiny-en`, `base-de` or `large-v3-zh`.  
-Please be aware that the whisper models `*.en`,  `large-v1`, `large-v2` have been excluded as I believe they are not frequently used. If you require these models, please refer to the following section to build them on your own.
-
-You can find the actual build matrix in [04-build-matrix-images.yml](.github/workflows/04-build-matrix-images.yml) and all available tags at [ghcr.io](https://github.com/jim60105/docker-whisperX/pkgs/container/whisperx/versions?filters%5Bversion_type%5D=tagged).
-
-In addition, there is also a `no_model` tag that does not include any pre-downloaded models, also referred to as `latest`.
-
-> Added a `distil-large-v3-en` model.  
-> Only en, distil model seems to only support English.
-
-## ⚡️ Preserve the download cache for the align models when working with various languages
-
-You can mount the `/.cache` to share align models between containers.  
-Please use tag `no_model` (`latest`) for this scenario.
+### 2. Starting the Container
+Run the image you created by exposing port 5000 and enabling GPU support:
 
 ```bash
-docker run --gpus all -it -v ".:/app" -v whisper_cache:/.cache ghcr.io/jim60105/whisperx:latest -- --model large-v3 --language en --output_format srt audio.mp3
+docker run --gpus all -p 5000:5000 whisperx-api:latest
 ```
 
-## 🛠️ Building the Docker Image
+*Note: The WhisperX model (loaded as `medium` - `float16` on `cuda`) is loaded into RAM when the API starts. This ensures high-speed responses starting from the very first request.*
 
-> [!IMPORTANT]  
-> Clone the Git repository recursively to include submodules:  
-> `git clone --recursive https://github.com/jim60105/docker-whisperX.git`
+### 3. Sending Requests to the API
+The API expects *raw audio* data sent via the `POST` method. The incoming data is converted from `int16` to `float32` within the system before being fed into the model.
 
-### Build Arguments
+**Example request via Python:**
 
-The [Dockerfile](Dockerfile) builds the image contained models. It accepts two build arguments: `LANG` and `WHISPER_MODEL`.
+```python
+import requests
 
-- `LANG`: The language to transcribe. The default is `en`. See [supported languages in load_align_model.py](https://github.com/jim60105/docker-whisperX/blob/master/load_align_model.py).
-- `WHISPER_MODEL`: The model name. The default is `base`. See [fast-whisper](https://huggingface.co/Systran) for supported models.
+# Reading the raw audio file to be processed
+with open('audio_sample.raw', 'rb') as f:
+    audio_bytes = f.read()
 
-In case of multiple language alignments needed, use space separated list of languages `"LANG=pl fr en"` when building the image. Also note that WhisperX is not doing well to handle multiple languages within the same audio file. Even if you do not provide the language parameter, it will still recognize the language (or fallback to en) and use it for choosing the alignment model. Alignment models are language specific. **This instruction is simply for embedding multiple alignment models into a docker image.**
+# Sending a POST request to the Flask API
+url = "http://localhost:5000/"
+response = requests.post(url, data=audio_bytes)
 
-### Build Command
-
-For example, if you want to build the image with `en` language and `large-v3` model:
-
-```bash
-docker build --build-arg LANG=en --build-arg WHISPER_MODEL=large-v3 -t whisperx:large-v3-en .
+if response.status_code == 200:
+    print("Transcription Result:\n", response.json())
+else:
+    print(f"Error ({response.status_code}):", response.text)
 ```
 
-If you want to build the image without any pre-downloaded models:
+## Configuration Notes
+In the current `main.py` configuration, the following parameters are hardcoded:
+* **Model:** `medium`
+* **Device / Precision:** `cuda` / `float16`
+* **Language:** `tr` (Turkish)
+* **Batch Size:** `16`
 
-```bash
-docker build --target no_model -t whisperx:no_model .
-```
+You can update these parameters within the `main.py` file according to your needs.
 
-If you want to build all images at once, we have [a Docker bake file](docker-bake.hcl) available:
-
-```bash
-docker buildx bake build no_model
-```
-
-### Usage Command
-
-Mount the current directory as `/app` and run WhisperX with additional input arguments:
-
-```bash
-docker run --gpus all -it -v ".:/app" whisperx:large-v3-ja -- --output_format srt audio.mp3
-```
-
-> [!NOTE]  
-> Remember to prepend `--` before the arguments.  
-> `--model` and `--language` args are defined in Dockerfile, no need to specify.
-
-## 📝 LICENSE
-
-> The main program, WhisperX, is distributed under [the BSD-4 license](https://github.com/m-bain/whisperX/blob/main/LICENSE).  
-> Please consult their repository for access to the source code and license.
-
-The Dockerfile and CI workflow files in this repository are licensed under [the MIT license](LICENSE).
-
-## 🌟 Star History
-
-<a href="https://www.star-history.com/#jim60105/docker-whisperX&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=jim60105/docker-whisperX&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=jim60105/docker-whisperX&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=jim60105/docker-whisperX&type=Date" />
- </picture>
-</a>
+---
+*License and Original Project Details: Since this project is based on the original docker-whisperX project, the core MIT and BSD-4 license requirements are maintained.*
