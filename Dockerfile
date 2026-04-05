@@ -108,18 +108,7 @@ RUN --mount=type=cache,id=uv-$TARGETARCH$TARGETVARIANT,sharing=locked,target=/ro
 # Install whisperX project
 RUN --mount=type=cache,id=uv-$TARGETARCH$TARGETVARIANT,sharing=locked,target=/root/.cache/uv \
     --mount=source=whisperX,target=.,rw \
-    uv sync --frozen --no-dev --no-editable && \
-    # pyannote-audio 4.0.4 need torchcodec 0.10.0;
-    # torchcodec 0.10.0 need torch 2.10.0;
-    # torch 2.XX+cu128 need torchcodec 0.XX.0+cu128;
-    # The last time I submitted PR #1182 to update torch-related packages, it took three months and was really tiring. I think I'll just resolve the issue here this time.
-    # Anyone who notices this line please feel free to submit it upstream.
-    if [ "$TARGETARCH" = "amd64" ]; then \
-    uv pip install --reinstall --torch-backend=cu128 \
-    torch==2.10.0+cu128 \
-    torchaudio==2.10.0+cu128 \
-    torchcodec==0.10.0+cu128; \
-    fi
+    uv sync --frozen --no-dev --no-editable
 
 ########################################
 # Final stage for no_model
